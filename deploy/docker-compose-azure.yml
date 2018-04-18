@@ -1,0 +1,33 @@
+# usage: docker stack deploy -c docker-compose.yml windmill
+
+version: "3.3"
+services:
+  vertx:
+    image: deepro.io/windmill/vertx:1.0.0
+    build:
+      context: ..
+      dockerfile: deploy/vertx/Dockerfile
+      args:
+        - REPO=deepro.io
+    secrets:
+      - SXS_DBW_SECRET
+    configs:
+      - source: vertx.conf-1.1.0
+        target: /usr/local/cloudbrain/windmill/conf.json
+    ports:
+      - target: 8000
+        published: 8000
+        mode: host
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.cbr.app==true
+
+secrets:
+  SXS_DBW_SECRET:
+    external: true
+
+configs:
+  vertx.conf-1.0.0:
+    file: ./vertx/conf-azure.json
