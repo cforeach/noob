@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN"  monitorInterval="300"><!-- 每隔300秒重新读取配置文件，对web应用很实用 -->
+    <Appenders>
+        <Console name="console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} %L %M - %msg%n" />
+        </Console>
+        <RollingFile name="log" fileName="log/test.log"
+            filePattern="log/test_%d{yyyy-MM-dd}.log" >
+            <!-- 输出格式 -->
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} %L %M - %msg%n" />
+            <Policies>
+            <!-- 每1天更新一次 -->
+                <TimeBasedTriggeringPolicy modulate="true" interval="1" />
+            </Policies>
+        </RollingFile>
+    </Appenders>
+    <Loggers><!-- 日志类别 -->
+        <!-- 定义根日志类别 -->
+        <Root level="INFO">
+            <AppenderRef ref="console" />
+        </Root>
+        <Logger name="perf" level="DEBUG" additivity="false">
+            <AppenderRef ref="log"/>
+        </Logger>
+    </Loggers>
+</Configuration>

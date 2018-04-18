@@ -1,0 +1,15 @@
+{
+    "mysql":{
+        "host":"mysql",
+        "port":3306,
+        "username":"windmill",
+        "password":"to be modified",
+        "database":"main",
+        "charset":"UTF-8",
+        "maxPoolSize":500
+        },
+    "vertx": {
+        "port": 8000
+    }
+}
+
