@@ -26,14 +26,17 @@ jobs:
       # Download and cache dependencies
       - restore_cache:
           keys:
-          - v1-dependencies-{{ checksum "pom.xml" }}
+          - v1-dependencies-{{ checksum "service/pom.xml" }}
 
-      - run: mvn dependency:go-offline
+      - run: mvn -f service/pom.xml dependency:go-offline
 
       - save_cache:
           paths:
             - ~/.m2
-          key: v1-dependencies-{{ checksum "pom.xml" }}
+          key: v1-dependencies-{{ checksum "service/pom.xml" }}
 
-      # run tests!
-      - run: mvn integration-test
+      - run: mvn -f service/pom.xml integration-test
+
+      - setup_remote_docker
+
+      - run: docker-compose -f deploy/docker-compose-azure.yml build
