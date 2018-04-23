@@ -39,6 +39,16 @@
       <artifactId>log4j-core</artifactId>
       <version>2.9.0</version>
     </dependency>
+      <dependency>
+          <groupId>io.vertx</groupId>
+          <artifactId>vertx-redis-client</artifactId>
+          <version>3.5.0</version>
+      </dependency>
+      <dependency>
+          <groupId>io.vertx</groupId>
+          <artifactId>vertx-web-client</artifactId>
+          <version>3.5.0</version>
+      </dependency>
   </dependencies>
 
   <build>
