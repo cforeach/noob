@@ -2,6 +2,8 @@ package cloudbrain.windmill.web;
 
 import cloudbrain.windmill.StartServer;
 import cloudbrain.windmill.dao.UserDAO;
+import cloudbrain.windmill.utils.Md5Util;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerRequest;
@@ -22,6 +24,7 @@ public class LoginHandler {
   //?access_token=ACCESS_TOKEN&openid=OPENID 参数
   private static final String GET_USER_BY_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/sns/userinfo";
 
+  private static final long TOKEN_TIMEOUT = 1800;
   /**
    * 点击微信登陆按钮
    *
@@ -38,7 +41,7 @@ public class LoginHandler {
 
 
   /**
-   * 扫二维码回调方法(未完成)
+   * 扫二维码回调方法(微信交互部分待测试)
    *
    * @param
    * @return
@@ -59,59 +62,76 @@ public class LoginHandler {
     //给微信发送请求获取accessToken
     Future<HttpResponse<Buffer>> getAccessTokenFuture = Future.future();
     Future<HttpResponse<Buffer>> getUserByWxFuture = Future.future();
-    Future<Void> saveRedisFuture=Future.future();
-
-    //redis处理的回调函数
-    saveRedisFuture.setHandler(res->{
-
-    });
 
     //openid 换取微信User信息
-    getUserByWxFuture.setHandler(res -> {
-      JsonObject userJsonFromWx = res.result().bodyAsJsonObject();
-      String unionid = userJsonFromWx.getString("unionid");
+    getUserByWxFuture.setHandler(res ->
+            getUserByWx(context, result, res)
+    );
+
+    getAccessTokenFuture.setHandler(res ->
+            getAccessToken(context, result, getUserByWxFuture, res)
+    );
+
+    HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), url);
+    getRequest.putHeader("content-type", "application/json;charset=utf-8").send(getAccessTokenFuture.completer());
+  }
+
+  private void getAccessToken(RoutingContext context, JsonObject result, Future<HttpResponse<Buffer>> getUserByWxFuture, AsyncResult<HttpResponse<Buffer>> res) {
+    JsonObject respnseBody = res.result().bodyAsJsonObject();
+    if (respnseBody.containsKey("openid")) {
+      String openid = respnseBody.getString("openid");
+      String accessToken = respnseBody.getString("access_token");
+
+      //获取微信user信息
+      HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), GET_USER_BY_ACCESS_TOKEN_URL);
+      getRequest.putHeader("content-type", "application/json").putHeader("openid", openid).putHeader("access_token", accessToken).send(getUserByWxFuture.completer());
+    } else { //扫码失败
+      result.put("success", false).put("message", "用户扫码失败");
       toResponse(context, result);
+      return;
+    }
+  }
 
-      //查询数据库是否有此用户
-      StartServer.mysqlclient.query("SELECT * FROM T_USER T WHERE T.`unionid`='" + unionid + "' ", mySqlRes -> {
-        List<JsonObject> userFromDB = mySqlRes.result().getRows();
-        if (userFromDB.size() == 0) {//新增
-          String insertSql=userDAO.getInsertSql(userFromDB.get(0));
-          StartServer.mysqlclient.update(insertSql,insertRes->{
-          });
-        } else { //更新
+  private void getUserByWx(RoutingContext context, JsonObject result, AsyncResult<HttpResponse<Buffer>> res) {
+    JsonObject userJsonFromWx = res.result().bodyAsJsonObject();
+    String unionid = userJsonFromWx.getString("unionid");
+    // toResponse(context, result);
 
-        }
-        //生成token 并生成信息
-      });
-
-    });
-
-    getAccessTokenFuture.setHandler(res -> {
-      JsonObject respnseBody = res.result().bodyAsJsonObject();
-      if (respnseBody.containsKey("openid")) {
-        result.put("success", true).put("openid", respnseBody.getValue("openid"));
-        String openid = respnseBody.getString("openid");
-        String accessToken = respnseBody.getString("access_token");
-
-        //获取微信user信息
-        HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), GET_USER_BY_ACCESS_TOKEN_URL);
-        getRequest.putHeader("content-type", "application/json").putHeader("openid", openid).putHeader("access_token", accessToken).send(getUserByWxFuture.completer());
-      } else {
-        result.put("success", false);
+    //查询数据库是否有此用户
+    StartServer.mysqlclient.query("SELECT * FROM T_USER T WHERE T.`unionid`='" + unionid + "' ", mySqlRes -> {
+      List<JsonObject> userFromDB = mySqlRes.result().getRows();
+      if (userFromDB.size() == 0) {//新增
+        String insertSql = userDAO.getInsertSql(userJsonFromWx);
+        StartServer.mysqlclient.update(insertSql, insertRes -> {
+        });
+      } else { //更新
+        String updateSql = userDAO.getUpdateSql(userJsonFromWx);
+        StartServer.mysqlclient.update(updateSql, insertRes -> {
+        });
       }
 
+      //生成token 并保存至redis中
+      try {
+        String token = Md5Util.MD5(userJsonFromWx.getString("unionid") + String.valueOf(System.currentTimeMillis()));
+        StartServer.redisClient.setex(token, TOKEN_TIMEOUT, userJsonFromWx.encodePrettily(), redisRes -> {
+          userJsonFromWx.put("token", token);
+          toResponse(context, userJsonFromWx);
+        });
+      } catch (Exception e) {
+        e.printStackTrace();
+        result.put("success", false).put("message", e.getMessage());
+        toResponse(context, result);
+      }
     });
-    HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), url);
-    getRequest.putHeader("content-type", "application/json").send(getAccessTokenFuture.completer());
   }
+
 
   private String getAccessTokenUrl(String code) {
     return this.GET_ACCESS_TOKEN_URL.replace("?1", code);
   }
 
   /**
-   * 返回一个json格式的相应
+   * 返回一个json格式的响应
    *
    * @param
    * @return
