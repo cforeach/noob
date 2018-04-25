@@ -1,69 +1,67 @@
 package cloudbrain.windmill.utils;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import sun.misc.BASE64Decoder;
+import sun.misc.BASE64Encoder;
 
-/**
- * @version V1.0
- * @desc AES 加密工具类
- */
-public class AESUtil {
-  private static final String KEY_AES = "AES";
+public class AESUtil {  //初始向量
+  public static final String VIPARA = "aabtjkddeeffgghh";   //AES 为16bytes. DES 为8bytes
 
-  public static String encrypt(String src, String key) throws Exception {
-    if (key == null || key.length() != 16) {
-      throw new Exception("key不满足条件");
+  //编码方式
+  public static final String bm = "UTF-8";
+
+  //私钥
+  private static final String ASE_KEY = "aabbchjgeeffgghh";   //AES固定格式为128/192/256 bits.即：16/24/32bytes。DES固定格式为128bits，即8bytes。
+
+  /**
+   * 加密
+   *
+   * @param cleartext
+   * @return
+   */
+  public static String encrypt(String cleartext) {
+    //加密方式： AES128(CBC/PKCS5Padding) + Base64, 私钥：aabbccddeeffgghh
+    try {
+      IvParameterSpec zeroIv = new IvParameterSpec(VIPARA.getBytes());
+      //两个参数，第一个为私钥字节数组， 第二个为加密方式 AES或者DES
+      SecretKeySpec key = new SecretKeySpec(ASE_KEY.getBytes(), "AES");
+      //实例化加密类，参数为加密方式，要写全
+      Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding"); //PKCS5Padding比PKCS7Padding效率高，PKCS7Padding可支持IOS加解密
+      //初始化，此方法可以采用三种方式，按加密算法要求来添加。（1）无第三个参数（2）第三个参数为SecureRandom random = new SecureRandom();中random对象，随机数。(AES不可采用这种方法)（3）采用此代码中的IVParameterSpec
+      cipher.init(Cipher.ENCRYPT_MODE, key, zeroIv);
+      //加密操作,返回加密后的字节数组，然后需要编码。主要编解码方式有Base64, HEX, UUE,7bit等等。此处看服务器需要什么编码方式
+      byte[] encryptedData = cipher.doFinal(cleartext.getBytes(bm));
+
+      return new BASE64Encoder().encode(encryptedData);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return "";
     }
-    byte[] raw = key.getBytes();
-    SecretKeySpec skeySpec = new SecretKeySpec(raw, KEY_AES);
-    Cipher cipher = Cipher.getInstance(KEY_AES);
-    cipher.init(Cipher.ENCRYPT_MODE, skeySpec);
-    byte[] encrypted = cipher.doFinal(src.getBytes());
-    return byte2hex(encrypted);
   }
 
-  public static String decrypt(String src, String key) throws Exception {
-    if (key == null || key.length() != 16) {
-      throw new Exception("key不满足条件");
+  /**
+   * 解密
+   *
+   * @param encrypted
+   * @return
+   */
+  public static String decrypt(String encrypted) {
+    try {
+      byte[] byteMi = new BASE64Decoder().decodeBuffer(encrypted);
+      IvParameterSpec zeroIv = new IvParameterSpec(VIPARA.getBytes());
+      SecretKeySpec key = new SecretKeySpec(
+              ASE_KEY.getBytes(), "AES");
+      Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+      //与加密时不同MODE:Cipher.DECRYPT_MODE
+      cipher.init(Cipher.DECRYPT_MODE, key, zeroIv);
+      byte[] decryptedData = cipher.doFinal(byteMi);
+      return new String(decryptedData, bm);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return "";
     }
-    byte[] raw = key.getBytes();
-    SecretKeySpec skeySpec = new SecretKeySpec(raw, KEY_AES);
-    Cipher cipher = Cipher.getInstance(KEY_AES);
-    cipher.init(Cipher.DECRYPT_MODE, skeySpec);
-    byte[] encrypted1 = hex2byte(src);
-    byte[] original = cipher.doFinal(encrypted1);
-    String originalString = new String(original);
-    return originalString;
-  }
-
-  public static byte[] hex2byte(String strhex) {
-    if (strhex == null) {
-      return null;
-    }
-    int l = strhex.length();
-    if (l % 2 == 1) {
-      return null;
-    }
-    byte[] b = new byte[l / 2];
-    for (int i = 0; i != l / 2; i++) {
-      b[i] = (byte) Integer.parseInt(strhex.substring(i * 2, i * 2 + 2),
-              16);
-    }
-    return b;
-  }
-
-  public static String byte2hex(byte[] b) {
-    String hs = "";
-    String stmp = "";
-    for (int n = 0; n < b.length; n++) {
-      stmp = (java.lang.Integer.toHexString(b[n] & 0XFF));
-      if (stmp.length() == 1) {
-        hs = hs + "0" + stmp;
-      } else {
-        hs = hs + stmp;
-      }
-    }
-    return hs.toUpperCase();
   }
 }

@@ -2,7 +2,7 @@ package cloudbrain.windmill.web;
 
 import cloudbrain.windmill.StartServer;
 import cloudbrain.windmill.dao.UserDAO;
-import cloudbrain.windmill.utils.Md5Util;
+import cloudbrain.windmill.utils.AESUtil;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -35,7 +35,7 @@ public class LoginHandler {
    */
   public void wxLoginFirstGetUrl(RoutingContext context) {
     JsonObject obj = new JsonObject();
-    obj.put("QRCODE_URL", QRCODE_URL);
+    obj.put("qr_code", QRCODE_URL);
     toResponse(context, obj);
   }
 
@@ -95,7 +95,6 @@ public class LoginHandler {
   private void getUserByWx(RoutingContext context, JsonObject result, AsyncResult<HttpResponse<Buffer>> res) {
     JsonObject userJsonFromWx = res.result().bodyAsJsonObject();
     String unionid = userJsonFromWx.getString("unionid");
-    // toResponse(context, result);
 
     //查询数据库是否有此用户
     StartServer.mysqlclient.query("SELECT * FROM T_USER T WHERE T.`unionid`='" + unionid + "' ", mySqlRes -> {
@@ -112,10 +111,13 @@ public class LoginHandler {
 
       //生成token 并保存至redis中
       try {
-        String token = Md5Util.MD5(userJsonFromWx.getString("unionid") + String.valueOf(System.currentTimeMillis()));
-        StartServer.redisClient.setex(token, TOKEN_TIMEOUT, userJsonFromWx.encodePrettily(), redisRes -> {
-          userJsonFromWx.put("token", token);
-          toResponse(context, userJsonFromWx);
+        //加密
+        String beforeToken = userJsonFromWx.getString("unionid") + ":" + String.valueOf(System.currentTimeMillis());
+        String token = AESUtil.encrypt(beforeToken);
+
+        StartServer.redisClient.setex(token, TOKEN_TIMEOUT, userJsonFromWx.toString(), redisRes -> {
+          result.put("success",true).put("token", token).put("user",userJsonFromWx);
+          toResponse(context, result);
         });
       } catch (Exception e) {
         e.printStackTrace();
