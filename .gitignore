@@ -24,3 +24,18 @@ hs_err_pid*
 # maven build target, run log
 service/target
 service/log
+
+# IntelliJ project files 
+*.iml
+*.iws
+*.ipr
+.idea/
+
+# eclipse project file
+.settings/
+.classpath
+.project
+
+# Misc
+.DS_Store
+*.swp
