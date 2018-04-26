@@ -1,9 +1,9 @@
 package cloudbrain.windmill.web;
 
 
+import cloudbrain.windmill.Server;
 import cloudbrain.windmill.constant.LoginConstant;
 import cloudbrain.windmill.utils.AESUtil;
-
 import cloudbrain.windmill.utils.ConfReadUtils;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -12,7 +12,6 @@ import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
-import io.vertx.redis.RedisClient;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -93,7 +92,35 @@ public class LoginHandlerTest extends LoginHandler {
 
 
   @Test
-  public void getUserByToken() {
+  public void getUserByToken(TestContext context) {
+    Async async = context.async();
+    JsonObject response = new JsonObject().put("success", "false").put("message", "token已过期请重新登录");
+    try {
+      //初始化返回值
+      JsonObject tokenJson = new JsonObject().put("token", "e2FTJ9fcmJafBlNpIP9VTZA69ck1U3EUyv6ioAN7Fz0=");
+      //解密token
+      String token = AESUtil.decrypt(tokenJson.getString("token"));
+      System.out.println(token);
+      //拆分token
+      String[] tokenArray = token.split(":");
 
+      if (System.currentTimeMillis() <= Long.valueOf(tokenArray[1])) {//查看是否超时
+        mysqlclient.query("SELECT T.`HEADIMGURL` headimgurl,T.`SEX` sex,T.`UNIONID` unionid,T.`PROVINCE` provice,T.`COUNTRY` country,T.`CITY` city,T.`NICKNAME` nickname FROM `t_user` t WHERE t.`unionid`='" + tokenArray[0] + "'", res -> {
+          if (res.result().getRows().size() > 0) {
+            response.put("success","true").put("message","");
+            response.put("user", res.result().getRows().get(0));
+          } else {
+            response.put("success", "false").put("message", "token值有误");
+          }
+          System.out.println(response);
+          async.complete();
+        });
+      }
+
+    } catch (Exception e) {
+      e.printStackTrace();
+      response.put("success", "false").put("message", "参数不正确或token无效");
+      System.out.println(response);
+    }
   }
 }

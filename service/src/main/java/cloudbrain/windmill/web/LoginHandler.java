@@ -86,21 +86,21 @@ public class LoginHandler {
    * @return user 信息
    */
   public void getUserByToken(RoutingContext context){
-    JsonObject response=new JsonObject();
+    JsonObject response=new JsonObject().put("success", "false").put("message", "token已过期请重新登录");
     try {
       //初始化返回值
-      JsonObject tokenJson = context.getBodyAsJson().put("success", "false").put("message", "token已过期请重新登录");
+      JsonObject tokenJson = context.getBodyAsJson();
       //解密token
       String token = AESUtil.decrypt(tokenJson.getString("token"));
       //拆分token
       String[] tokenArray = token.split(":");
 
       if (System.currentTimeMillis() <= Long.valueOf(tokenArray[1])) {//查看是否超时
-        Server.mysqlclient.query("SELECT T.`HEADIMGURL`,T.`SEX`,T.`UNIONID`,T.`PROVINCE`,T.`COUNTRY`,T.`CITY`,T.`NICKNAME` FROM `t_user` t WHERE t.`unionid`='" + tokenArray[0] + "'", res -> {
+        Server.mysqlclient.query("SELECT T.`HEADIMGURL` headimgurl,T.`SEX` sex,T.`UNIONID` unionid,T.`PROVINCE` provice,T.`COUNTRY` country,T.`CITY` city,T.`NICKNAME` nickname FROM `t_user` t WHERE t.`unionid`='" + tokenArray[0] + "'", res -> {
           if (res.result().getRows().size() > 0) {
-            response.put("user", res.result().getRows().get(0));
+            response.put("success","true").put("message","").put("user", res.result().getRows().get(0));
           } else {
-            response.put("success", "false").put("message", "token值有误");
+            response.put("message", "token值有误");
           }
           toResponse(context, response);
         });
