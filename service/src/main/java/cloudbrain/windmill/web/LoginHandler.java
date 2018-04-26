@@ -1,6 +1,7 @@
 package cloudbrain.windmill.web;
 
-import cloudbrain.windmill.StartServer;
+import cloudbrain.windmill.Server;
+import cloudbrain.windmill.constant.LoginConstant;
 import cloudbrain.windmill.dao.UserDAO;
 import cloudbrain.windmill.utils.AESUtil;
 import io.vertx.core.AsyncResult;
@@ -24,7 +25,8 @@ public class LoginHandler {
   //?access_token=ACCESS_TOKEN&openid=OPENID 参数
   private static final String GET_USER_BY_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/sns/userinfo";
 
-  private static final long TOKEN_TIMEOUT = 1800;
+
+
   /**
    * 点击微信登陆按钮
    *
@@ -72,9 +74,37 @@ public class LoginHandler {
             getAccessToken(context, result, getUserByWxFuture, res)
     );
 
-    HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), url);
+    HttpRequest<Buffer> getRequest = Server.webClient.get(String.valueOf(Server.vertx_port), url);
     getRequest.putHeader("content-type", "application/json;charset=utf-8").send(getAccessTokenFuture.completer());
   }
+
+
+  /**根据tonken获取User信息
+   * @author jiwei
+   * @time 2018/4/26   11:39
+   * @param
+   * @return user 信息
+   */
+  public void getUserByToken(RoutingContext context){
+    JsonObject response=new JsonObject();
+    try {
+      JsonObject tokenJson=context.getBodyAsJson();
+      String token=tokenJson.getString("token");
+      Server.redisClient.get(LoginConstant.TOKEN_PREFIX+token,res->{
+        if (res.succeeded()&&res.result()!=null){
+          response.put("success","true").put("message","").put("user",res.result());
+        }else {
+          response.put("success","false").put("message","token已过期请重新登录");
+        }
+      });
+    }catch (Exception e){
+      response.put("success","false").put("message","参数不正确");
+    }finally {
+      toResponse(context,response);
+    }
+
+  }
+
 
   private void getAccessToken(RoutingContext context, JsonObject result, Future<HttpResponse<Buffer>> getUserByWxFuture, AsyncResult<HttpResponse<Buffer>> res) {
     JsonObject respnseBody = res.result().bodyAsJsonObject();
@@ -83,7 +113,7 @@ public class LoginHandler {
       String accessToken = respnseBody.getString("access_token");
 
       //获取微信user信息
-      HttpRequest<Buffer> getRequest = StartServer.webClient.get(String.valueOf(StartServer.vertx_port), GET_USER_BY_ACCESS_TOKEN_URL);
+      HttpRequest<Buffer> getRequest = Server.webClient.get(String.valueOf(Server.vertx_port), GET_USER_BY_ACCESS_TOKEN_URL);
       getRequest.putHeader("content-type", "application/json").putHeader("openid", openid).putHeader("access_token", accessToken).send(getUserByWxFuture.completer());
     } else { //扫码失败
       result.put("success", false).put("message", "用户扫码失败");
@@ -97,15 +127,15 @@ public class LoginHandler {
     String unionid = userJsonFromWx.getString("unionid");
 
     //查询数据库是否有此用户
-    StartServer.mysqlclient.query("SELECT * FROM T_USER T WHERE T.`unionid`='" + unionid + "' ", mySqlRes -> {
+    Server.mysqlclient.query("SELECT * FROM T_USER T WHERE T.`unionid`='" + unionid + "' ", mySqlRes -> {
       List<JsonObject> userFromDB = mySqlRes.result().getRows();
       if (userFromDB.size() == 0) {//新增
         String insertSql = userDAO.getInsertSql(userJsonFromWx);
-        StartServer.mysqlclient.update(insertSql, insertRes -> {
+        Server.mysqlclient.update(insertSql, insertRes -> {
         });
       } else { //更新
         String updateSql = userDAO.getUpdateSql(userJsonFromWx);
-        StartServer.mysqlclient.update(updateSql, insertRes -> {
+        Server.mysqlclient.update(updateSql, insertRes -> {
         });
       }
 
@@ -115,7 +145,7 @@ public class LoginHandler {
         String beforeToken = userJsonFromWx.getString("unionid") + ":" + String.valueOf(System.currentTimeMillis());
         String token = AESUtil.encrypt(beforeToken);
 
-        StartServer.redisClient.setex(token, TOKEN_TIMEOUT, userJsonFromWx.toString(), redisRes -> {
+        Server.redisClient.setex(LoginConstant.TOKEN_PREFIX+token, LoginConstant.TOKEN_TIMEOUT, userJsonFromWx.toString(), redisRes -> {
           result.put("success",true).put("token", token).put("user",userJsonFromWx);
           toResponse(context, result);
         });

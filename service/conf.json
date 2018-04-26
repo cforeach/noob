@@ -2,12 +2,16 @@
     "mysql":{
         "host":"mysql",
         "port":3306,
-        "username":"windmill",
-        "password":"to be modified",
+        "username":"writer",
+        "password":"SXS_DBW_SECRET",
         "database":"main",
         "charset":"UTF-8",
         "maxPoolSize":500
-        },
+    },
+    "redis":{
+        "host":"redis",
+        "port":6379
+    },
     "vertx": {
         "port": 8000
     }

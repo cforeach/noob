@@ -1,99 +1,162 @@
 package cloudbrain.windmill;
 
+import cloudbrain.windmill.constant.UrlConstant;
+import cloudbrain.windmill.utils.ConfReadUtils;
+import cloudbrain.windmill.web.LoginHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.asyncsql.MySQLClient;
 import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.sql.SQLConnection;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.ext.web.handler.LoggerFormat;
-import io.vertx.ext.web.handler.LoggerHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
+import io.vertx.redis.RedisClient;
+import io.vertx.redis.RedisOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
+import java.io.IOException;
 
 public class Server extends AbstractVerticle {
+  public static int vertx_port;
   private static JsonObject serverConf;
-  protected SQLClient mysqlclient;
+  public static SQLClient mysqlclient;
+  public static RedisClient redisClient;
+
+  public static WebClient webClient;
   private static final Logger logger = LogManager.getLogger();
+
+  //初始化Handler
+  protected static final LoginHandler loginHandler = new LoginHandler();
 
 
   public static void main(String[] args) {
-    Vertx vertx = Vertx.vertx();
-    vertx.deployVerticle(Server.class, new DeploymentOptions());
+    Vertx vert = Vertx.vertx();
+    vert.deployVerticle(Server.class, new DeploymentOptions());
   }
-
 
   @Override
   public void start() throws Exception {
-    serverConf = getServerConf("conf.json");
-    int vertx_port = serverConf.getJsonObject("vertx").getInteger("port");
-    JsonObject mysqlConf = serverConf.getJsonObject("mysql");
-    mysqlclient = MySQLClient.createNonShared(vertx, mysqlConf);
-
     Router router = Router.router(vertx);
-    router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));
     router.route().handler(BodyHandler.create());
 
-    Handler<RoutingContext> mysqlHandler = routingContext
-      -> mysqlclient.getConnection(res -> {
-          if (res.failed()) {
-            routingContext.fail(res.cause());
-          } else {
-            SQLConnection conn = res.result();
-            routingContext.put("mysqlconn", conn);
-            routingContext.addHeadersEndHandler(done
-              -> conn.close(v -> { }));
-            routingContext.next();
-          }
-        }
-    );
+    //初始化配置
+    initConfig(router);
 
-    Handler<RoutingContext> mysqlfailHandler = routingContext -> {
-        SQLConnection conn = routingContext.get("mysqlconn");
-        if (conn != null) {
-          conn.close(v -> {});
-        }
-      };
+    //初始化映射
+    initMapping(router);
 
-    router.route("/*").handler(mysqlHandler)
-      .handler(TimeoutHandler.create(3*1000))
-      .failureHandler(mysqlfailHandler);
-
-    //register uri handlers
-
-    //start http server
-    vertx.createHttpServer().requestHandler(router::accept)
-      .listen(vertx_port);
-    logger.info("server started");
+    HttpServer httpServer = vertx.createHttpServer();
+    httpServer.requestHandler(router::accept).listen(vertx_port);
   }
 
 
   /**
-   * read server conf and return as jsonobject
+   * 初始化映射关系
+   *
+   * @param
+   * @return
+   * @author jiwei
+   * @time 2018/4/23   10:16
    */
-  private JsonObject getServerConf(String filename) {
-    Path path = Paths.get(filename);
+  private void initMapping(Router router) {
+    router.get(UrlConstant.WX_LOGIN_URL).handler(loginHandler::wxLoginFirstGetUrl);
+    router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(loginHandler::wxLoginCallBack);
+    router.get(UrlConstant.GET_USER_BY_TOKEN).handler(loginHandler::getUserByToken);
+  }
+
+  /**
+   * 初始化配置
+   *
+   * @param
+   * @return
+   * @author jiwei
+   * @time 2018/4/20   11:40
+   */
+  private void initConfig(Router router) {
     try {
-      String data = new String(Files.readAllBytes(path));
-      return new JsonObject(data);
-    }
-    catch (Exception e) {
+      serverConf = ConfReadUtils.getServerConfByJson("conf.json");
+    } catch (IOException e) {
+      e.printStackTrace();
       logger.error(e);
     }
+    vertx_port = serverConf.getJsonObject("vertx").getInteger("port");
 
-    return null;
+    initMySqlConfig(router);
+    initRedis(router);
+    initWebClient(router);
   }
 
 
+
+  /**
+   * 初始化Mysql配置
+   *
+   * @param
+   * @return
+   * @author jiwei
+   * @time 2018/4/20   11:40
+   */
+  private void initMySqlConfig(Router router) {
+    JsonObject mysqlConf = serverConf.getJsonObject("mysql");
+    mysqlclient = MySQLClient.createNonShared(vertx, mysqlConf);
+
+    Handler<RoutingContext> mysqlHandler = routingContext
+            -> mysqlclient.getConnection(res -> {
+              if (res.failed()) {
+                routingContext.fail(res.cause());
+              } else {
+                SQLConnection conn = res.result();
+                routingContext.put("mysqlconn", conn);
+                routingContext.addHeadersEndHandler(done
+                        -> conn.close(v -> {
+                }));
+                routingContext.next();
+              }
+            }
+    );
+
+    Handler<RoutingContext> mysqlfailHandler = routingContext -> {
+      SQLConnection conn = routingContext.get("mysqlconn");
+      if (conn != null) {
+        conn.close(v -> {
+        });
+      }
+    };
+    router.route("/").handler(mysqlHandler)
+            .handler(TimeoutHandler.create(3 * 1000))
+            .failureHandler(mysqlfailHandler);
+  }
+
+  /**
+   * 初始化web客户端
+   *
+   * @param
+   * @return
+   * @author jiwei
+   * @time 2018/4/23   10:37
+   */
+  private void initWebClient(Router router) {
+    webClient = WebClient.create(vertx);
+  }
+  /**
+   * 初始化Redis配置
+   *
+   * @param
+   * @return
+   * @author jiwei
+   * @time 2018/4/20   14:44
+   */
+  private void initRedis(Router router) {
+    JsonObject redisConf = serverConf.getJsonObject("redis");
+    RedisOptions config = new RedisOptions(redisConf);
+    redisClient = RedisClient.create(vertx, config);
+  }
 }
