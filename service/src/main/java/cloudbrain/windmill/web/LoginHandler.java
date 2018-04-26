@@ -104,6 +104,8 @@ public class LoginHandler {
           }
           toResponse(context, response);
         });
+      }else {
+        toResponse(context, response);
       }
 
     }catch (Exception e){

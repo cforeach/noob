@@ -115,6 +115,9 @@ public class LoginHandlerTest extends LoginHandler {
           System.out.println(response);
           async.complete();
         });
+      }else {
+        System.out.println(response);
+        async.complete();
       }
 
     } catch (Exception e) {
