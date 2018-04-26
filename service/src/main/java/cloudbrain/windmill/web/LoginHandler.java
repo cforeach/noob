@@ -88,21 +88,28 @@ public class LoginHandler {
   public void getUserByToken(RoutingContext context){
     JsonObject response=new JsonObject();
     try {
-      JsonObject tokenJson=context.getBodyAsJson();
-      String token=tokenJson.getString("token");
-      Server.redisClient.get(LoginConstant.TOKEN_PREFIX+token,res->{
-        if (res.succeeded()&&res.result()!=null){
-          response.put("success","true").put("message","").put("user",res.result());
-        }else {
-          response.put("success","false").put("message","token已过期请重新登录");
-        }
-      });
-    }catch (Exception e){
-      response.put("success","false").put("message","参数不正确");
-    }finally {
-      toResponse(context,response);
-    }
+      //初始化返回值
+      JsonObject tokenJson = context.getBodyAsJson().put("success", "false").put("message", "token已过期请重新登录");
+      //解密token
+      String token = AESUtil.decrypt(tokenJson.getString("token"));
+      //拆分token
+      String[] tokenArray = token.split(":");
 
+      if (System.currentTimeMillis() <= Long.valueOf(tokenArray[1])) {//查看是否超时
+        Server.mysqlclient.query("SELECT T.`HEADIMGURL`,T.`SEX`,T.`UNIONID`,T.`PROVINCE`,T.`COUNTRY`,T.`CITY`,T.`NICKNAME` FROM `t_user` t WHERE t.`unionid`='" + tokenArray[0] + "'", res -> {
+          if (res.result().getRows().size() > 0) {
+            response.put("user", res.result().getRows().get(0));
+          } else {
+            response.put("success", "false").put("message", "token值有误");
+          }
+          toResponse(context, response);
+        });
+      }
+
+    }catch (Exception e){
+      response.put("success", "false").put("message", "参数不正确或token无效");
+      toResponse(context, response);
+    }
   }
 
 
@@ -142,13 +149,14 @@ public class LoginHandler {
       //生成token 并保存至redis中
       try {
         //加密
-        String beforeToken = userJsonFromWx.getString("unionid") + ":" + String.valueOf(System.currentTimeMillis());
+        String beforeToken = userJsonFromWx.getString("unionid") + ":" + String.valueOf(System.currentTimeMillis() + LoginConstant.TOKEN_TIMEOUT) + ":" + (int) (Math.random() * 1000);
         String token = AESUtil.encrypt(beforeToken);
 
-        Server.redisClient.setex(LoginConstant.TOKEN_PREFIX+token, LoginConstant.TOKEN_TIMEOUT, userJsonFromWx.toString(), redisRes -> {
-          result.put("success",true).put("token", token).put("user",userJsonFromWx);
-          toResponse(context, result);
-        });
+        //发送token
+        result.put("success", true).put("token", token).put("user", userJsonFromWx);
+        toResponse(context, result);
+
+
       } catch (Exception e) {
         e.printStackTrace();
         result.put("success", false).put("message", e.getMessage());

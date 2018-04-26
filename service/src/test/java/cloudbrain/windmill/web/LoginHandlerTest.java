@@ -22,7 +22,6 @@ import java.util.List;
 @RunWith(VertxUnitRunner.class)
 public class LoginHandlerTest extends LoginHandler {
   private static final long TOKEN_TIMEOUT = 1800;
-  static RedisClient redisClient;
   static SQLClient mysqlclient;
   public static int vertx_port;
   private static JsonObject serverConf;
@@ -34,10 +33,10 @@ public class LoginHandlerTest extends LoginHandler {
 
     serverConf = ConfReadUtils.getServerConfByJson("conf.json");
     JsonObject mysqlConf =serverConf.getJsonObject("mysql");
-    JsonObject redisConf =serverConf.getJsonObject("redis");
+
 
     mysqlclient = MySQLClient.createNonShared(vert, mysqlConf);
-    redisClient = RedisClient.create(vert,redisConf);
+
 
 
   }
@@ -80,13 +79,12 @@ public class LoginHandlerTest extends LoginHandler {
 
       //生成token 并保存至redis中
       try {
-        String beforeToken=userJsonFromWx.getString("unionid") +":"+ String.valueOf(System.currentTimeMillis());
+        String beforeToken = userJsonFromWx.getString("unionid") + ":" + String.valueOf(System.currentTimeMillis() + LoginConstant.TOKEN_TIMEOUT) + ":" + (int) (Math.random() * 1000);
+       System.out.println("加密前的token:"+beforeToken);
         String token = AESUtil.encrypt(beforeToken);
-        redisClient.setex(LoginConstant.TOKEN_PREFIX+token, LoginConstant.TOKEN_TIMEOUT, userJsonFromWx.toString(), redisRes -> {
-          result.put("success","true").put("token", token).put("message","").put("user",userJsonFromWx);
-          System.out.println("结果: "+result.toString());
-          async.complete();
-        });
+        result.put("success","true").put("token", token).put("message","").put("user",userJsonFromWx);
+        System.out.println("结果"+result);//uuLG22vjBwqA33JZgAOtunxvJVhv0fs7Ie5oZ5RLLDc=
+        async.complete();
       } catch (Exception e) {
         e.printStackTrace();
       }
@@ -94,4 +92,8 @@ public class LoginHandlerTest extends LoginHandler {
   }
 
 
+  @Test
+  public void getUserByToken() {
+
+  }
 }

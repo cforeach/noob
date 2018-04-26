@@ -90,7 +90,7 @@ public class Server extends AbstractVerticle {
     vertx_port = serverConf.getJsonObject("vertx").getInteger("port");
 
     initMySqlConfig(router);
-    initRedis(router);
+  //  initRedis(router);
     initWebClient(router);
   }
 
