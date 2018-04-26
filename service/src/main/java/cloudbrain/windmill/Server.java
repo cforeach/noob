@@ -69,7 +69,7 @@ public class Server extends AbstractVerticle {
   private void initMapping(Router router) {
     router.get(UrlConstant.WX_LOGIN_URL).handler(loginHandler::wxLoginFirstGetUrl);
     router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(loginHandler::wxLoginCallBack);
-    router.get(UrlConstant.GET_USER_BY_TOKEN).handler(loginHandler::getUserByToken);
+    router.post(UrlConstant.GET_USER_BY_TOKEN).handler(loginHandler::getUserByToken);
   }
 
   /**
