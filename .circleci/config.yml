@@ -43,7 +43,7 @@ jobs:
           name: run tests
           command: |
             set -e
-            mvn -f service/pom.xml integration-test
+            mvn -f service/pom.xml test
 
       - setup_remote_docker
 
