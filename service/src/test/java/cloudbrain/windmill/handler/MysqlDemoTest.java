@@ -46,7 +46,7 @@ public class MysqlDemoTest {
       put("host", "localhost").
       put("port", 3306).
       put("username", "root").
-      put("password", "").
+      put("password", "root").
       put("database", "circle_test").
       put("connectTimeout", 5).
       put("charset", "UTF-8");
