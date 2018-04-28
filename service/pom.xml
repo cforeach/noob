@@ -104,7 +104,7 @@
         <version>2.20</version>
         <configuration>
             <skip>false</skip>
-            <testFailureIgnore>true</testFailureIgnore>
+            <testFailureIgnore>false</testFailureIgnore>
             <argLine>${surefireArgLine}</argLine>
         </configuration>
       </plugin>

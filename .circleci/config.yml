@@ -39,11 +39,7 @@ jobs:
             - ~/.m2
           key: v1-dependencies-{{ checksum "service/pom.xml" }}
 
-      - run:
-          name: run tests
-          command: |
-            set -e
-            mvn -f service/pom.xml test
+      - run: mvn -f service/pom.xml integration-test
 
       - setup_remote_docker
 
