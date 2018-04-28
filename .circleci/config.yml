@@ -41,7 +41,7 @@ jobs:
 
       - run:
           name: run tests
-          command:
+          command: |
             set -e
             mvn -f service/pom.xml integration-test
 
