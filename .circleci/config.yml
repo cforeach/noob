@@ -8,6 +8,7 @@ jobs:
     docker:
       # specify the version you desire here
       - image: circleci/openjdk:8-jdk
+      - image: circleci/mysql:5.7.22
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
@@ -39,4 +40,4 @@ jobs:
 
       - setup_remote_docker
 
-      - run: docker-compose -f deploy/docker-compose-azure.yml build
+      - run: docker-compose -f deploy/docker-compose.yml build
