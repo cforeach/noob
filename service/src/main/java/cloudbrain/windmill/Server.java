@@ -1,40 +1,39 @@
 package cloudbrain.windmill;
 
 import cloudbrain.windmill.constant.UrlConstant;
+import cloudbrain.windmill.handler.WXCallbackHandler;
 import cloudbrain.windmill.utils.ConfReadUtils;
-import cloudbrain.windmill.web.LoginHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.asyncsql.AsyncSQLClient;
 import io.vertx.ext.asyncsql.MySQLClient;
 import io.vertx.ext.sql.SQLClient;
 import io.vertx.ext.sql.SQLConnection;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.LoggerFormat;
+import io.vertx.ext.web.handler.LoggerHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
-import io.vertx.redis.RedisClient;
-import io.vertx.redis.RedisOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
 public class Server extends AbstractVerticle {
-  public static int vertx_port;
-  private static JsonObject serverConf;
-  public static SQLClient mysqlclient;
-  public static RedisClient redisClient;
+  private  int vertx_port;
+  private  JsonObject serverConf;
+  private  SQLClient mysqlClient;
+  private JsonObject wxJsonConf;
 
-  public static WebClient webClient;
+  private static WebClient webClient;
   private static final Logger logger = LogManager.getLogger();
-
-  //初始化Handler
-  protected static final LoginHandler loginHandler = new LoginHandler();
 
 
   public static void main(String[] args) {
@@ -46,70 +45,19 @@ public class Server extends AbstractVerticle {
   public void start() throws Exception {
     Router router = Router.router(vertx);
     router.route().handler(BodyHandler.create());
+    router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));//安装日志处理器
 
-    //初始化配置
-    initConfig(router);
-
+    //从配置文件获取appid和secret
+    String appid = ConfReadUtils.getServerConfByJson("conf.json").getJsonObject("wx").getString("appid");
+    String secret = ConfReadUtils.getServerConfByJson("conf.json").getJsonObject("wx").getString("secret");
     //初始化映射
-    initMapping(router);
-
-    HttpServer httpServer = vertx.createHttpServer();
-    httpServer.requestHandler(router::accept).listen(vertx_port);
-  }
-
-
-  /**
-   * 初始化映射关系
-   *
-   * @param
-   * @return
-   * @author jiwei
-   * @time 2018/4/23   10:16
-   */
-  private void initMapping(Router router) {
-    router.get(UrlConstant.WX_LOGIN_URL).handler(loginHandler::wxLoginFirstGetUrl);
-    router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(loginHandler::wxLoginCallBack);
-    router.post(UrlConstant.GET_USER_BY_TOKEN).handler(loginHandler::getUserByToken);
-  }
-
-  /**
-   * 初始化配置
-   *
-   * @param
-   * @return
-   * @author jiwei
-   * @time 2018/4/20   11:40
-   */
-  private void initConfig(Router router) {
-    try {
-      serverConf = ConfReadUtils.getServerConfByJson("conf.json");
-    } catch (IOException e) {
-      e.printStackTrace();
-      logger.error(e);
-    }
-    vertx_port = serverConf.getJsonObject("vertx").getInteger("port");
-
-    initMySqlConfig(router);
-  //  initRedis(router);
-    initWebClient(router);
-  }
-
-
-
-  /**
-   * 初始化Mysql配置
-   *
-   * @param
-   * @return
-   * @author jiwei
-   * @time 2018/4/20   11:40
-   */
-  private void initMySqlConfig(Router router) {
+    router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(new WXCallbackHandler(wxJsonConf,webClient,mysqlClient));
     JsonObject mysqlConf = serverConf.getJsonObject("mysql");
-    mysqlclient = MySQLClient.createNonShared(vertx, mysqlConf);
+    mysqlClient = MySQLClient.createNonShared(vertx, mysqlConf);
+    mysqlClient.updateWithParams(null, null, null);
 
     Handler<RoutingContext> mysqlHandler = routingContext
-            -> mysqlclient.getConnection(res -> {
+            -> mysqlClient.getConnection(res -> {
               if (res.failed()) {
                 routingContext.fail(res.cause());
               } else {
@@ -133,30 +81,22 @@ public class Server extends AbstractVerticle {
     router.route("/").handler(mysqlHandler)
             .handler(TimeoutHandler.create(3 * 1000))
             .failureHandler(mysqlfailHandler);
+
+    //创建server服务，监听vertx端口
+    HttpServer httpServer = vertx.createHttpServer();
+    
+    vertx_port=ConfReadUtils.getServerConfByJson("json.conf").getJsonObject("vertx").getInteger("port");
+    
+    httpServer.requestHandler(router::accept).listen(vertx_port);//监听vertx端口
+    
+    //创建带有指定options的WebClient
+      //从配置文件获取webClientOptions的信息
+    JsonObject webClientOptions = serverConf.getJsonObject("wx").getJsonObject("webClientOptions");
+    
+    WebClientOptions options = new WebClientOptions(webClientOptions);
+    
+    webClient = WebClient.create(vertx,options);
+    
   }
 
-  /**
-   * 初始化web客户端
-   *
-   * @param
-   * @return
-   * @author jiwei
-   * @time 2018/4/23   10:37
-   */
-  private void initWebClient(Router router) {
-    webClient = WebClient.create(vertx);
-  }
-  /**
-   * 初始化Redis配置
-   *
-   * @param
-   * @return
-   * @author jiwei
-   * @time 2018/4/20   14:44
-   */
-  private void initRedis(Router router) {
-    JsonObject redisConf = serverConf.getJsonObject("redis");
-    RedisOptions config = new RedisOptions(redisConf);
-    redisClient = RedisClient.create(vertx, config);
-  }
 }
