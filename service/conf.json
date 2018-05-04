@@ -9,7 +9,7 @@
         "maxPoolSize":500
     },
     "redis":{
-        "host":"redis",
+        "host":"redis", 
         "port":6379
     },
     "vertx": {
