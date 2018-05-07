@@ -1,19 +1,36 @@
 {
     "mysql":{
-        "host":"mysql",
+        "host":"localhost",
         "port":3306,
-        "username":"writer",
-        "password":"SXS_DBW_SECRET",
-        "database":"main",
+        "username":"root",
+        "password":"123456",
+        "database":"windmill",
         "charset":"UTF-8",
         "maxPoolSize":500
     },
     "redis":{
-        "host":"redis", 
+        "host":"redis",
         "port":6379
     },
     "vertx": {
         "port": 8000
+    },
+    "wx":{
+    	"Get_AccessToken_Url":"https://api.weixin.qq.com/sns/oauth2/access_token?appid=",
+    	"Get_UserInfo_Url":"https://api.weixin.qq.com/sns/userinfo?",
+    	"appid":"",
+    	"secret":"",
+	  	"webClientOptions":{
+		    "defaultHost":"localhost",
+		    "defaultPort":443,
+		    "SSL->Secure Socket Layer安全套接层协议":"",
+		    "ssl":true,
+		    "keepAlive":true,
+		    "connectTimeout":5000,
+		    "idleTimeout":10,
+		    "maxPoolSize":1000
+    	}
+    	
     }
 }
 
