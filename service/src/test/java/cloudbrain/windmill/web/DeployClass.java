@@ -12,7 +12,7 @@ public class DeployClass extends AbstractVerticle{
 
   public static void main(String[] args) {
     Vertx vertx=Vertx.vertx();
-    vertx.deployVerticle(VisualServer.class.getName());
+    vertx.deployVerticle(ConnectionTest.class.getName());
   }
   
 }
