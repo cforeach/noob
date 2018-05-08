@@ -1,10 +1,10 @@
 {
     "mysql":{
-        "host":"localhost",
+        "host":"mysql",
         "port":3306,
-        "username":"root",
-        "password":"123456",
-        "database":"windmill",
+        "username":"writer",
+        "password":"SXS_DBW_SECRET",
+        "database":"main",
         "charset":"UTF-8",
         "maxPoolSize":500
     },
