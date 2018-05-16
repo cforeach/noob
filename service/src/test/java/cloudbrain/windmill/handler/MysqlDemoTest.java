@@ -31,57 +31,44 @@ import java.util.Queue;
 /**
  * test /syncdata/match_intern
  */
- 
- 
- 
- 
 
-@RunWith(VertxUnitRunner.class)
 public class MysqlDemoTest {
-  private static Vertx vertx;
-  private static SQLClient mysqlclient;
+	private static Vertx vertx;
+	private static SQLClient mysqlclient;
 
+	// @BeforeClass
+	public static void beforeClass() {
+		vertx = Vertx.vertx();
+		// mysql client
+		JsonObject conf = new JsonObject().put("host", "localhost")
+				.put("port", 3306).put("username", "root").put("password", "root")
+				.put("database", "circle_test").put("connectTimeout", 5)
+				.put("charset", "UTF-8");
+		mysqlclient = MySQLClient.createNonShared(vertx, conf);
+	}
 
-  @BeforeClass
-  public static void beforeClass() {
-    vertx = Vertx.vertx();
-    //mysql client
-    JsonObject conf = new JsonObject().
-      put("host", "localhost").
-      put("port", 3306).
-      put("username", "root").
-      put("password", "root").
-      put("database", "circle_test").
-      put("connectTimeout", 5).
-      put("charset", "UTF-8");
-    mysqlclient = MySQLClient.createNonShared(vertx, conf);
-  }
+	// @AfterClass
+	public static void afterClass() {
+		vertx.close();
+	}
 
-
-  @AfterClass
-  public static void afterClass() {
-    vertx.close();
-  }
-
-
-  @Test
-  public void testDemo(TestContext context) throws Exception {
-    Async async = context.async();
-    //get connection
-    Future.<SQLConnection>future(fut -> mysqlclient.getConnection(fut)).
-      compose(conn -> {
-        return Future.<ResultSet>future(fut ->
-          conn.query("select 'abc' c1", fut));
-        }).
-      setHandler(ar -> {
-          if(ar.failed()) {
-            ar.cause().printStackTrace();
-            context.assertFalse(1==1);
-          } else {
-            context.assertTrue("abc".
-              equals(ar.result().getRows().get(0).getString("c1")));
-          }
-          async.complete();
-        });
-  }
+	// @Test
+	public void testDemo(TestContext context) throws Exception {
+		Async async = context.async();
+		// get connection
+		Future.<SQLConnection>future(fut -> mysqlclient.getConnection(fut))
+				.compose(conn -> {
+					return Future
+							.<ResultSet>future(fut -> conn.query("select 'abc' c1", fut));
+				}).setHandler(ar -> {
+					if (ar.failed()) {
+						ar.cause().printStackTrace();
+						context.assertFalse(1 == 1);
+					} else {
+						context.assertTrue(
+								"abc".equals(ar.result().getRows().get(0).getString("c1")));
+					}
+					async.complete();// 写在所有异步操作的末尾，标志着所有异步操作的结束。。。
+				});
+	}
 }

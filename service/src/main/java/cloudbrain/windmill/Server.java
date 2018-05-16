@@ -1,6 +1,8 @@
 package cloudbrain.windmill;
 
 import cloudbrain.windmill.constant.UrlConstant;
+import cloudbrain.windmill.handler.LoginHandler;
+import cloudbrain.windmill.handler.GetUserHandler;
 import cloudbrain.windmill.handler.WXCallbackHandler;
 import cloudbrain.windmill.utils.ConfReadUtils;
 import io.vertx.core.AbstractVerticle;
@@ -27,76 +29,75 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 
 public class Server extends AbstractVerticle {
-  private  int vertx_port;
-  private  JsonObject serverConf;
-  private  SQLClient mysqlClient;
-  private JsonObject wxJsonConf;
+	private int vertx_port;
+	private JsonObject serverConf;
+	private SQLClient mysqlClient;
+	private JsonObject wxJsonConf;
+	private WebClient webClient;
+	private static final Logger logger = LogManager.getLogger();
 
-  private static WebClient webClient;
-  private static final Logger logger = LogManager.getLogger();
+	public static void main(String[] args) {
+		Vertx vertx = Vertx.vertx();
+		vertx.deployVerticle(Server.class, new DeploymentOptions());
 
+	}
 
-  public static void main(String[] args) {
-    Vertx vert = Vertx.vertx();
-    vert.deployVerticle(Server.class, new DeploymentOptions());
-  }
+	@Override
+	public void start() throws Exception {
+		Router router = Router.router(vertx);
+		router.route().handler(BodyHandler.create());
+		router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));// 安装日志处理器
+		// 从配置文件获取webClientOptions的信息
+		serverConf = ConfReadUtils.getServerConfByJson("conf.json");
+		JsonObject webClientOptions = serverConf.getJsonObject("wx").getJsonObject("webClientOptions");
 
-  @Override
-  public void start() throws Exception {
-    Router router = Router.router(vertx);
-    router.route().handler(BodyHandler.create());
-    router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));//安装日志处理器
+		WebClientOptions options = new WebClientOptions(webClientOptions);
 
-    //从配置文件获取appid和secret
-    String appid = ConfReadUtils.getServerConfByJson("conf.json").getJsonObject("wx").getString("appid");
-    String secret = ConfReadUtils.getServerConfByJson("conf.json").getJsonObject("wx").getString("secret");
-    //初始化映射
-    router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(new WXCallbackHandler(wxJsonConf,webClient,mysqlClient));
-    JsonObject mysqlConf = serverConf.getJsonObject("mysql");
-    mysqlClient = MySQLClient.createNonShared(vertx, mysqlConf);
-    mysqlClient.updateWithParams(null, null, null);
+		webClient = WebClient.create(vertx, options);
 
-    Handler<RoutingContext> mysqlHandler = routingContext
-            -> mysqlClient.getConnection(res -> {
-              if (res.failed()) {
-                routingContext.fail(res.cause());
-              } else {
-                SQLConnection conn = res.result();
-                routingContext.put("mysqlconn", conn);
-                routingContext.addHeadersEndHandler(done
-                        -> conn.close(v -> {
-                }));
-                routingContext.next();
-              }
-            }
-    );
+		JsonObject mysqlConf = serverConf.getJsonObject("mysql");
+		mysqlClient = MySQLClient.createNonShared(vertx, mysqlConf);
+		// 定义获取连接的handler
+		Handler<RoutingContext> mysqlHandler = routingContext -> mysqlClient.getConnection(res -> {
+			if (res.failed()) {
+				routingContext.fail(res.cause());
+			} else {
+				SQLConnection conn = res.result();
+				routingContext.put("mysqlconn", conn);
+				routingContext.addHeadersEndHandler(done -> conn.close(v -> {
+				}));
+				routingContext.next();
+			}
+		});
+		// 定义关闭连接的handler
+		Handler<RoutingContext> mysqlfailHandler = routingContext -> {
+			SQLConnection conn = routingContext.get("mysqlconn");
+			if (conn != null) {
+				conn.close(v -> {
+				});
+			}
+		};
 
-    Handler<RoutingContext> mysqlfailHandler = routingContext -> {
-      SQLConnection conn = routingContext.get("mysqlconn");
-      if (conn != null) {
-        conn.close(v -> {
-        });
-      }
-    };
-    router.route("/").handler(mysqlHandler)
-            .handler(TimeoutHandler.create(3 * 1000))
-            .failureHandler(mysqlfailHandler);
+		/**
+		 * 路由注册sqlHandler和failureHandler，获取连接和关闭连接
+		 */
+		router.route("/*").handler(mysqlHandler).handler(TimeoutHandler.create(5 * 1000)).failureHandler(mysqlfailHandler);
 
-    //创建server服务，监听vertx端口
-    HttpServer httpServer = vertx.createHttpServer();
-    
-    vertx_port=ConfReadUtils.getServerConfByJson("json.conf").getJsonObject("vertx").getInteger("port");
-    
-    httpServer.requestHandler(router::accept).listen(vertx_port);//监听vertx端口
-    
-    //创建带有指定options的WebClient
-      //从配置文件获取webClientOptions的信息
-    JsonObject webClientOptions = serverConf.getJsonObject("wx").getJsonObject("webClientOptions");
-    
-    WebClientOptions options = new WebClientOptions(webClientOptions);
-    
-    webClient = WebClient.create(vertx,options);
-    
-  }
+		// 初始化映射
+		// 返回二维码地址
+		router.get(UrlConstant.WX_LOGIN_URL).handler(new LoginHandler());
+		// 授权凭证回调
+		//router.get(UrlConstant.WX_LOGIN_CALL_BACK).handler(new WXCallbackHandler(wxJsonConf, webClient, mysqlClient));
+		// 使用access_token查询用户信息
+		router.get(UrlConstant.GET_USER_BY_TOKEN).handler(new GetUserHandler(mysqlClient));
+
+		// 创建server服务，监听vertx端口
+		HttpServer httpServer = vertx.createHttpServer();
+
+		vertx_port = ConfReadUtils.getServerConfByJson("conf.json").getJsonObject("vertx").getInteger("port");
+
+		httpServer.requestHandler(router::accept).listen(vertx_port);// 监听vertx端口
+
+	}
 
 }

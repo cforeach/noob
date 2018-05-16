@@ -1,29 +1,24 @@
 {
-    "mysql":{
+   "mysql":{
         "host":"mysql",
         "port":3306,
         "username":"writer",
-        "password":"SXS_DBW_SECRET",
+        "password":"DBW_SECRET",
         "database":"main",
         "charset":"UTF-8",
         "maxPoolSize":500
-    },
-    "redis":{
-        "host":"redis",
-        "port":6379
     },
     "vertx": {
         "port": 8000
     },
     "wx":{
-    	"Get_AccessToken_Url":"https://api.weixin.qq.com/sns/oauth2/access_token?appid=",
-    	"Get_UserInfo_Url":"https://api.weixin.qq.com/sns/userinfo?",
-    	"appid":"",
-    	"secret":"",
+    	"accesstoken_url":"https://api.weixin.qq.com/sns/oauth2/access_token?appid=",
+    	"userinfo_url":"https://api.weixin.qq.com/sns/userinfo?",
+    	"appid":"39Fb01",
+    	"secret":"N8i5L1",
 	  	"webClientOptions":{
-		    "defaultHost":"localhost",
+		    "defaultHost":"api.weixin.qq.com",
 		    "defaultPort":443,
-		    "SSL->Secure Socket Layer安全套接层协议":"",
 		    "ssl":true,
 		    "keepAlive":true,
 		    "connectTimeout":5000,
