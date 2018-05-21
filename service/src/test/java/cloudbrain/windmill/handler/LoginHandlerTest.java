@@ -49,13 +49,9 @@ public class LoginHandlerTest extends BaseClassTest {
 		webClient.get(localPort, "localhost", "/public/login/wxLogin").send(res -> {
 			if (res.failed()) {
 				// 输出失败的状态码
-				System.out.println(res.result().statusCode());
 				res.cause().printStackTrace();
 				context.assertFalse(true);
 			} else {
-				// 输出成功的状态码
-				System.out.println("二维码为====" + res.result().bodyAsString());
-
 				context.assertTrue(
 						res.result().bodyAsJsonObject().containsKey("qrcode_url"));
 			}

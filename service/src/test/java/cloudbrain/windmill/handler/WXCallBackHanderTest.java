@@ -2,10 +2,15 @@ package cloudbrain.windmill.handler;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import org.apache.log4j.net.SyslogAppender;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.asyncsql.MySQLClient;
@@ -14,6 +19,7 @@ import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.client.HttpRequest;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 
@@ -24,61 +30,61 @@ public class WXCallBackHanderTest {
   private ServerSocket serverSocket2;// 微信服务器端口
   private int localPort1;
   private int localPort2;
+  private Vertx vertx;
 
   @Test
-  public void testHandler() throws Exception {
+  public void testHandler(TestContext context) throws Exception {
     serverSocket1 = new ServerSocket(0);
     serverSocket2 = new ServerSocket(0);
     localPort1 = serverSocket1.getLocalPort();
     localPort2 = serverSocket2.getLocalPort();
-    System.out.println("localPort1" + localPort1);
-    System.out.println("localPort2" + localPort2);
     serverSocket1.close();
     serverSocket2.close();
+    vertx=Vertx.vertx();
+    //启动微信access_token服务器
+    createWXServer(localPort2,context);
     
-    //启动微信服务器
-    createWXServer(localPort2);
     //启动wind服务器
     createWindSerser(localPort1,localPort2);
+    //appClient
+    createAppClient(localPort1, context);
   }
-  
-  
   //微信服务端
-  public void createWXServer(int localPort2) throws Exception {
+  public void createWXServer(int localPort2, TestContext context) throws Exception {
     // 测试语句
-    System.out.println("wxServer方法进来了");
-    // 创建本地端口号
-    
-
     // vertx
     Vertx vertx = Vertx.vertx();
     // 测试下2个方法的vertx是否是同一个。。应该不是
-    System.out.println("wx服务器的vertx为" + vertx);
-
     Router router = Router.router(vertx);
-    router.route("/test/*").handler(res -> {
-      System.out.println("requestPath" + res.request().path());
-      System.out.println("requestUri" + res.request().uri());
-      System.out.println("wxServer路由进来了");
+    //accesstoken的路由注册
+    router.route("/test/access_token*").handler(res -> {
+      if(res.failed()) {
+      }
       JsonObject jsonObject = new JsonObject();
       jsonObject.put("openid", "THIS_IS_TEST_OPENID")
           .put("access_token", "THIS_IS_TEST_ACCESS_TOKEN")
           .put("userinfo_url", "THIS_IS_TEST_USERINFO_URL");
-      // 返回用于测试access_token的json
-      // res.response().end("123");
-      res.response().end(jsonObject.toString());
+      res.response().setStatusCode(200).end(jsonObject.encode());
     });
+    router.route("/test/userinfo*").handler(res->{
+      if(res.failed()) {
+      }
+      JsonObject jsonObject = new JsonObject();
+      jsonObject.put("openid", "OPENID")
+          .put("nickname", "NICKNAME")
+          .put("headimgurl", "http://wx.qlogo.cn/mmopen/g3MonUZtNHkdmzicIlibx6iaFqAc56vxLSUfpb6n5WKSYVY0ChQKkiaJSgQ1dZuTOgvLLrhJbERQQ4eMsv84eavHiaiceqxibJxCfHe/0")
+          .put("unionid"," o6_bmasdasdsad6_2sgVt7hMZOPfL");
+      res.response().end(jsonObject.encode());
+    });
+    
     HttpServer httpServer = vertx.createHttpServer();
     httpServer.requestHandler(router::accept).listen(localPort2);
-    System.out.println("wxServer started");
-
+    
     }
   
     // 自己的服务器
   public void createWindSerser(int localPort1, int localPort2) {
-    // 测试语句System.out.println("testHanle come in");
     Vertx vertx2 = Vertx.vertx();
-    System.out.println("自己服务器的vertx为" + vertx2);
                         
     // wxServer(context);
     Router router2 = Router.router(vertx2);
@@ -87,23 +93,25 @@ public class WXCallBackHanderTest {
     // 配置
     JsonObject mysqlConf = new JsonObject();
     mysqlConf.put("host", "localhost").put("port", 3306).put("username", "root")
-        .put("password", "root").put("database", "circle_test")
-        .put("connectTimeout", 5).put("charset", "UTF-8");
+        .put("password", "123456").put("database", "test")
+        .put("connectTimeout", 5).put("charset", "utf-8");
     // 传参
     SQLClient mysqlClient = MySQLClient.createNonShared(vertx2, mysqlConf);
 
     HttpServer httpServer2 = vertx2.createHttpServer();
     // 配置自己的jsonObject,拼接url
-    JsonObject wxJsonConf2 = new JsonObject().put("appid", "13dwK0")
-        .put("secret", "w247BO").put("accesstoken_url",
-            "localhost:" + localPort2 + "/test/access_token?appid=");// 配置请求wx
+    JsonObject wxJsonConf2 = new JsonObject()
+        .put("appid", "13dwK0")
+        .put("secret", "w247BO")
+        .put("host","localhost")
+        .put("port", localPort2)
+        .put("accesstoken_url","/test/access_token?appid=")// 配置请求wx
+        .put("userinfo_url","/test/userinfo?access_token=");// 配置请求wx
                                                                      // url
     JsonObject jj = new JsonObject();
-    jj.put("defaultHost", "localhost").put("defaultPort", localPort1);
+    jj.put("defaultHost", "localhost").put("defaultPort", localPort2);
     WebClientOptions options = new WebClientOptions(jj);
 
-    System.out.println("server:"+options.getDefaultHost());
-    System.out.println("server:"+options.getDefaultPort());
     // 创建主机为localhost端口号和微信服务器一直的webClient
     webClient2 = WebClient.create(vertx2, options);
 
@@ -126,21 +134,15 @@ public class WXCallBackHanderTest {
   public void createAppClient(int localPort1, TestContext context) {
     Vertx vertx3 = Vertx.vertx();
     Async async = context.async();
-    System.out.println("client come in");
     WebClient webClient = WebClient.create(vertx3);
     webClient.get(localPort1, "localhost",
         "/public/login/wxLoginCallBack?appid=APPID&secret=SECRET&code=jagdpather&grant_type=authorization_code")
         .send(res -> {
           if (res.failed()) {
-            // 输出失败的状态码
-            System.out.println("输出失败的状态码" + res.result().statusCode());
             res.cause().printStackTrace();
-            context.assertFalse(true);
+          //  context.assertFalse(true);
           } else {
             // 输出成功的状态码
-            System.out.println("输出成功的状态码" + res.result().statusCode());
-            System.out.println(res.result().body().toString());
-            context.assertTrue(false);
           }
           async.complete();
         });

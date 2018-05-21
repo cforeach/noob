@@ -37,15 +37,14 @@ public class BaseClassTest {
 		serverSocket2 = new ServerSocket(0);
 		localPort = serverSocket.getLocalPort();
 		localPort2 = serverSocket2.getLocalPort();
-		System.out.println("baseclas中port2=="+localPort2);
 		serverSocket.close();
 		serverSocket2.close();
 	}
 
-	public JsonObject getSQLConf() {
+	public static JsonObject getSQLConf() {
 		JsonObject mysqlConf = new JsonObject();
 		mysqlConf.put("host", "localhost").put("port", 3306).put("username", "root")
-				.put("password", "root").put("database", "circle_test")
+				.put("password", "123456").put("database", "test")
 				.put("connectTimeout", 5).put("charset", "UTF-8");
 		return mysqlConf;
 

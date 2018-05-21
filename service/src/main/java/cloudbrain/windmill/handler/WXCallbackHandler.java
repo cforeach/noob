@@ -1,6 +1,9 @@
 package cloudbrain.windmill.handler;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 import org.apache.logging.log4j.LogManager;
 import cloudbrain.windmill.Server;
 import cloudbrain.windmill.utils.AESUtil;
@@ -41,15 +44,12 @@ public class WXCallbackHandler implements Handler<RoutingContext> {
 
 		String appid = wxJsonConf.getString("appid");
 		String secret = wxJsonConf.getString("secret");
-
-		// 发送给微信获取acctoken的url
-		String Url_To_Wx = wxJsonConf.getString("accesstoken_url") + appid + "&secret=" + secret
-				+ "&grant_type=authorization_code&code=" + code;
-
-		System.out.println(Url_To_Wx);
+		//get url
+		String url = wxJsonConf.getString("accesstoken_url");
+	  // 拼接：发送给微信获取acctoken的url
+		String url_to_wx=url+appid+"&secret="+secret+ "&grant_type=authorization_code&code=" + code;
 		
-		webClient.get(Url_To_Wx).putHeader("content-type", "application/json;charset=utf-8").send(msg -> {
-System.out.println("判断消息是否发送成功"+msg.succeeded());
+		webClient.get(url_to_wx).putHeader("content-type", "application/json;charset=utf-8").send(msg -> {
 			// 请求发送失败
 			if (msg.failed()) {
 				logger.error("token请求发送失败", msg.cause());
@@ -58,10 +58,8 @@ System.out.println("判断消息是否发送成功"+msg.succeeded());
 				return;
 			}
 			// 判断返回值是否包括指定的Key
-			System.out.println("msg.result()statusCode=="+msg.result().statusCode());
-
-			System.out.println("token发送成功，返回数据开始判断");
 			if (msg.result().bodyAsJsonObject().containsKey("openid")) {
+			 
 				// 发给微信code后微信返回的jsonObject
 				JsonObject jsonObject = msg.result().bodyAsJsonObject();
 				// 从response获取openid
@@ -69,12 +67,10 @@ System.out.println("判断消息是否发送成功"+msg.succeeded());
 				// 从response获取access_token
 				String token = jsonObject.getString("access_token");
 				
-				System.out.println("微信返回的access_token=="+token);
-				
 				// 获取用户信息的微信请求地址(未处理token和oppenid)
 				String Get_UserInfo_Url = wxJsonConf.getString("userinfo_url");
 				// 拼接access_token和oppenid到url
-				String new_getUserInfo_Url = Get_UserInfo_Url + "access_token=" + token + "&openid=" + openid;
+				String new_getUserInfo_Url = Get_UserInfo_Url + token + "&openid=" + openid;
 
 				/**
 				 * 根据accesstoken，获取userInfo
@@ -88,8 +84,6 @@ System.out.println("判断消息是否发送成功"+msg.succeeded());
 						String HEADIMGURL = userInfoJsonObj.getString("headimgurl");
 						// 返回给用户的token
 						String unionID = userInfoJsonObj.getString("unionid");
-						// 获取refresh_token
-						String refresh_token = userInfoJsonObj.getString("refresh_token");
 						// 先在数据库保存用户数据
 						JsonArray params = new JsonArray();
 						params.add(NICKNAME).add(HEADIMGURL).add(unionID);

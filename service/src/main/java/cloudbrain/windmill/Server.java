@@ -27,7 +27,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-
+/**
+ * 比较关键的地方：接口2的webClient,因为是向微信服务器发送请求，所以需要创建时附带webClientOptions,封装对应的主机和端口号。
+ * 通过在server中传入confJson来读取option配置，然后创建对应的webClient，最后将webClient作为有参构造传入接口2.
+ * @author cforeach
+ *
+ */
 public class Server extends AbstractVerticle {
 	private int vertx_port;
 	private JsonObject serverConf;

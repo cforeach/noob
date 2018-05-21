@@ -13,7 +13,7 @@
     },
     "wx":{
     	"accesstoken_url":"https://api.weixin.qq.com/sns/oauth2/access_token?appid=",
-    	"userinfo_url":"https://api.weixin.qq.com/sns/userinfo?",
+    	"userinfo_url":"https://api.weixin.qq.com/sns/userinfo?access_token=",
     	"appid":"39Fb01",
     	"secret":"N8i5L1",
 	  	"webClientOptions":{
