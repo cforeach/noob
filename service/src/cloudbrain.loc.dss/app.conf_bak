@@ -1,0 +1,14 @@
+[Service]
+Component = str : cloudbrain.loc.dss.Component
+Service = str : LOC-DSS
+
+[Tracing]
+Level = int : 0
+Provider = str : console
+Datasource = str : D:\logs\loc-dss
+
+[HAPortal]
+EnableVertx = bool : false
+
+[HAWorker]
+Standalone = bool : true
