@@ -72,7 +72,7 @@ public class BrowserAppTask {
       return;
     }
 
-    // 封装请求参数
+    // 封装请求参数  111111111
     Gson gson = new Gson();
     String json = gson.toJson(content);
 
